@@ -1,6 +1,17 @@
 # Storage-Users
 
-Purpose and description to be added
+The storage-users service provides access to user file storage in OpenCloud. It manages file operations, uploads, downloads, and metadata for user-owned files and folders.
+
+## Storage Drivers
+
+The service supports multiple storage drivers to accommodate different deployment scenarios:
+
+- **posix** (default since v2.0.0): Stores files directly on a POSIX-compliant filesystem. Best for single-node deployments or when using network filesystems like NFS or CephFS.
+- **decomposed**: Stores both metadata and file content on a POSIX-compliant filesystem using an optimized directory structure. Provides better performance for large deployments.
+- **decomposeds3**: Hybrid driver that stores metadata locally and file content in S3-compatible object storage. Ideal for cloud deployments.
+- **owncloudsql**: Migration driver for transitioning from ownCloud deployments.
+
+The storage driver is configured via the `STORAGE_USERS_DRIVER` environment variable.
 
 ## Graceful Shutdown
 
