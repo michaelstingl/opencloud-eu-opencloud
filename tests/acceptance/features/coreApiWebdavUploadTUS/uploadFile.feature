@@ -154,28 +154,28 @@ Feature: upload file
       | Upload-Length   | 100                 |
       | Upload-Metadata | filename <metadata> |
       | Tus-Resumable   | 1.0.0               |
-    Then the HTTP status code should be "412"
+    Then the HTTP status code should be "<http-status-code>"
     And the following headers should not be set
       | header   |
       | Location |
     And as "Alice" file <file-name> should not exist
     Examples:
-      | dav-path-version | file-name               | metadata                     |
-      | old              | " "                     | IA==                         |
-      | old              | "filewithLF-and-CR\r\n" | ZmlsZXdpdGhMRi1hbmQtQ1INCgo= |
-      | old              | "folder/file"           | Zm9sZGVyL2ZpbGU=             |
-      | old              | "my\\file"              | bXkMaWxl                     |
-      | old              | ".."                    | Li4=                         |
-      | new              | " "                     | IA==                         |
-      | new              | "filewithLF-and-CR\r\n" | ZmlsZXdpdGhMRi1hbmQtQ1INCgo= |
-      | new              | "folder/file"           | Zm9sZGVyL2ZpbGU=             |
-      | new              | "my\\file"              | bXkMaWxl                     |
-      | new              | ".."                    | Li4=                         |
-      | spaces           | " "                     | IA==                         |
-      | spaces           | "filewithLF-and-CR\r\n" | ZmlsZXdpdGhMRi1hbmQtQ1INCgo= |
-      | spaces           | "folder/file"           | Zm9sZGVyL2ZpbGU=             |
-      | spaces           | "my\\file"              | bXkMaWxl                     |
-      | spaces           | ".."                    | Li4=                         |
+      | dav-path-version | file-name               | metadata                     | http-status-code |
+      | old              | " "                     | IA==                         | 400              |
+      | old              | "filewithLF-and-CR\r\n" | ZmlsZXdpdGhMRi1hbmQtQ1INCgo= | 400              |
+      | old              | "folder/file"           | Zm9sZGVyL2ZpbGU=             | 412              |
+      | old              | "my\\file"              | bXkMaWxl                     | 400              |
+      | old              | ".."                    | Li4=                         | 400              |
+      | new              | " "                     | IA==                         | 400              |
+      | new              | "filewithLF-and-CR\r\n" | ZmlsZXdpdGhMRi1hbmQtQ1INCgo= | 400              |
+      | new              | "folder/file"           | Zm9sZGVyL2ZpbGU=             | 412              |
+      | new              | "my\\file"              | bXkMaWxl                     | 400              |
+      | new              | ".."                    | Li4=                         | 400              |
+      | spaces           | " "                     | IA==                         | 400              |
+      | spaces           | "filewithLF-and-CR\r\n" | ZmlsZXdpdGhMRi1hbmQtQ1INCgo= | 400              |
+      | spaces           | "folder/file"           | Zm9sZGVyL2ZpbGU=             | 412              |
+      | spaces           | "my\\file"              | bXkMaWxl                     | 400              |
+      | spaces           | ".."                    | Li4=                         | 400              |
 
   @issue-10346
   Scenario Outline: upload a zero-byte file
