@@ -258,6 +258,8 @@ func loadMiddlewares(logger log.Logger, cfg *config.Config,
 		roleAssigner = userroles.NewDefaultRoleAssigner(
 			userroles.WithRoleService(rolesClient),
 			userroles.WithLogger(logger),
+			userroles.WithRevaGatewaySelector(gatewaySelector),
+			userroles.WithServiceAccount(cfg.ServiceAccount),
 		)
 	case "oidc":
 		roleAssigner = userroles.NewOIDCRoleAssigner(

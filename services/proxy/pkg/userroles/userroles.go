@@ -6,9 +6,12 @@ import (
 	gateway "github.com/cs3org/go-cs3apis/cs3/gateway/v1beta1"
 	cs3 "github.com/cs3org/go-cs3apis/cs3/identity/user/v1beta1"
 	"github.com/opencloud-eu/opencloud/pkg/log"
+	"github.com/opencloud-eu/opencloud/pkg/middleware"
 	settingssvc "github.com/opencloud-eu/opencloud/protogen/gen/opencloud/services/settings/v0"
 	"github.com/opencloud-eu/opencloud/services/proxy/pkg/config"
 	"github.com/opencloud-eu/reva/v2/pkg/rgrpc/todo/pool"
+	"github.com/opencloud-eu/reva/v2/pkg/utils"
+	"go-micro.dev/v4/metadata"
 )
 
 // UserRoleAssigner allows providing different implementations for how users get their default roles
@@ -75,6 +78,25 @@ func WithServiceAccount(c config.ServiceAccount) Option {
 	return func(o *Options) {
 		o.serviceAccount = c
 	}
+}
+
+// prepareAdminContext builds a request context with elevated access to the settings service.
+// Listing role bundles and assigning roles both need it, so it lives on Options and is available
+// to every assigner rather than to one of them.
+func (o Options) prepareAdminContext() (context.Context, error) {
+	gatewayClient, err := o.gatewaySelector.Next()
+	if err != nil {
+		o.logger.Error().Err(err).Msg("could not select next gateway client")
+		return nil, err
+	}
+	newctx, err := utils.GetServiceUserContext(o.serviceAccount.ServiceAccountID, gatewayClient, o.serviceAccount.ServiceAccountSecret)
+	if err != nil {
+		o.logger.Error().Err(err).Msg("Error preparing request context for provisioning role assignments.")
+		return nil, err
+	}
+
+	newctx = metadata.Set(newctx, middleware.AccountID, o.serviceAccount.ServiceAccountID)
+	return newctx, nil
 }
 
 // loadRolesIDs returns the role-ids assigned to an user

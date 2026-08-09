@@ -7,11 +7,8 @@ import (
 	"time"
 
 	cs3 "github.com/cs3org/go-cs3apis/cs3/identity/user/v1beta1"
-	"github.com/opencloud-eu/opencloud/pkg/middleware"
 	"github.com/opencloud-eu/opencloud/pkg/oidc"
 	settingssvc "github.com/opencloud-eu/opencloud/protogen/gen/opencloud/services/settings/v0"
-	"github.com/opencloud-eu/reva/v2/pkg/utils"
-	"go-micro.dev/v4/metadata"
 )
 
 type oidcRoleAssigner struct {
@@ -135,7 +132,7 @@ func (ra oidcRoleAssigner) UpdateUserRoleAssignment(ctx context.Context, user *c
 		}
 	}
 
-	user.Opaque = utils.AppendJSONToOpaque(user.Opaque, "roles", []string{roleIDFromClaim})
+	ra.applyRolesToOpaque(user, []string{roleIDFromClaim})
 	return user, nil
 }
 
@@ -148,24 +145,8 @@ func (ra oidcRoleAssigner) ApplyUserRole(ctx context.Context, user *cs3.User) (*
 		return nil, err
 	}
 
-	user.Opaque = utils.AppendJSONToOpaque(user.Opaque, "roles", roleIDs)
+	ra.applyRolesToOpaque(user, roleIDs)
 	return user, nil
-}
-
-func (ra oidcRoleAssigner) prepareAdminContext() (context.Context, error) {
-	gatewayClient, err := ra.gatewaySelector.Next()
-	if err != nil {
-		ra.logger.Error().Err(err).Msg("could not select next gateway client")
-		return nil, err
-	}
-	newctx, err := utils.GetServiceUserContext(ra.serviceAccount.ServiceAccountID, gatewayClient, ra.serviceAccount.ServiceAccountSecret)
-	if err != nil {
-		ra.logger.Error().Err(err).Msg("Error preparing request context for provisioning role assignments.")
-		return nil, err
-	}
-
-	newctx = metadata.Set(newctx, middleware.AccountID, ra.serviceAccount.ServiceAccountID)
-	return newctx, nil
 }
 
 type roleNameToIDCache struct {

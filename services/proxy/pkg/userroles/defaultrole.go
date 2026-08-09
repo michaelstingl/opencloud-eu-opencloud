@@ -7,7 +7,6 @@ import (
 	"github.com/opencloud-eu/opencloud/pkg/middleware"
 	settingssvc "github.com/opencloud-eu/opencloud/protogen/gen/opencloud/services/settings/v0"
 	"github.com/opencloud-eu/opencloud/services/settings/pkg/store/defaults"
-	"github.com/opencloud-eu/reva/v2/pkg/utils"
 	"go-micro.dev/v4/metadata"
 )
 
@@ -63,7 +62,7 @@ func (d defaultRoleAssigner) UpdateUserRoleAssignment(ctx context.Context, user 
 		}
 	}
 
-	user.Opaque = utils.AppendJSONToOpaque(user.Opaque, "roles", roleIDs)
+	d.applyRolesToOpaque(user, roleIDs)
 	return user, nil
 }
 
@@ -76,6 +75,6 @@ func (d defaultRoleAssigner) ApplyUserRole(ctx context.Context, user *cs3.User) 
 		return nil, err
 	}
 
-	user.Opaque = utils.AppendJSONToOpaque(user.Opaque, "roles", roleIDs)
+	d.applyRolesToOpaque(user, roleIDs)
 	return user, nil
 }

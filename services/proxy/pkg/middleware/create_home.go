@@ -12,6 +12,7 @@ import (
 	"github.com/opencloud-eu/opencloud/pkg/log"
 	"github.com/opencloud-eu/opencloud/services/graph/pkg/errorcode"
 	"github.com/opencloud-eu/opencloud/services/proxy/pkg/router"
+	"github.com/opencloud-eu/opencloud/services/proxy/pkg/userroles"
 	revactx "github.com/opencloud-eu/reva/v2/pkg/ctx"
 	"github.com/opencloud-eu/reva/v2/pkg/rgrpc/status"
 	"github.com/opencloud-eu/reva/v2/pkg/rgrpc/todo/pool"
@@ -72,6 +73,14 @@ func (m createHome) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			next()
 			return
 		}
+		// The role assigner has already resolved whether this user's role permits a personal
+		// space. When it says no, CreateHome can only ever be denied, so asking the gateway on
+		// every request buys nothing and logs the denial as an error. An unset key means the
+		// assigner could not determine it; then we ask, as before.
+		if !mayCreateSpaces(u) {
+			next()
+			return
+		}
 		roleIDs, err := m.getUserRoles(u)
 		if err != nil {
 			m.logger.Error().Err(err).Str("userid", u.Id.OpaqueId).Msg("failed to get roles for user")
@@ -103,6 +112,17 @@ func (m createHome) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 func (m createHome) shouldServe(req *http.Request) bool {
 	ri := router.ContextRoutingInfo(req.Context())
 	return req.Header.Get(revactx.TokenHeader) != "" && !ri.IsRouteUnprotected()
+}
+
+// mayCreateSpaces reports whether the user's role permits creating a space, as recorded by the
+// role assigner. It errs towards true: an absent or unreadable key means "not determined", and
+// the caller then behaves as it did before the key existed.
+func mayCreateSpaces(user *userv1beta1.User) bool {
+	var allowed bool
+	if err := utils.ReadJSONFromOpaque(user.GetOpaque(), userroles.CreateSpacesOpaqueKey, &allowed); err != nil {
+		return true
+	}
+	return allowed
 }
 
 func (m createHome) getUserRoles(user *userv1beta1.User) ([]string, error) {
