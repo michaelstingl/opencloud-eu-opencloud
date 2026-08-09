@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	gateway "github.com/cs3org/go-cs3apis/cs3/gateway/v1beta1"
 	userv1beta1 "github.com/cs3org/go-cs3apis/cs3/identity/user/v1beta1"
 	rpc "github.com/cs3org/go-cs3apis/cs3/rpc/v1beta1"
 	provider "github.com/cs3org/go-cs3apis/cs3/storage/provider/v1beta1"
+	"github.com/jellydator/ttlcache/v3"
 	"github.com/opencloud-eu/opencloud/pkg/log"
 	"github.com/opencloud-eu/opencloud/services/graph/pkg/errorcode"
 	"github.com/opencloud-eu/opencloud/services/proxy/pkg/router"
@@ -26,8 +28,21 @@ func CreateHome(optionSetters ...Option) func(next http.Handler) http.Handler {
 	logger := options.Logger
 	tracer := getTraceProvider(options).Tracer("proxy.middleware.create_home")
 
+	// A CreateHome attempt is idempotent and its outcome is stable for a given user: either the
+	// home exists (ALREADY_EXISTS from here on) or the user's role does not permit one
+	// (PERMISSION_DENIED from here on). Neither answer changes between two requests seconds apart,
+	// yet without this the middleware asks the gateway again on EVERY request of every user.
+	// Remembering that we asked recently keeps the first request per user per TTL doing the work
+	// and lets the rest through untouched. Same shape as the group-sync cache in account_resolver.
+	attemptedCache := ttlcache.New(
+		ttlcache.WithTTL[string, struct{}](createHomeAttemptTTL),
+		ttlcache.WithDisableTouchOnHit[string, struct{}](),
+	)
+	go attemptedCache.Start()
+
 	return func(next http.Handler) http.Handler {
 		return &createHome{
+			attempted:           attemptedCache,
 			next:                next,
 			logger:              logger,
 			tracer:              tracer,
@@ -37,7 +52,13 @@ func CreateHome(optionSetters ...Option) func(next http.Handler) http.Handler {
 	}
 }
 
+// createHomeAttemptTTL is how long a user's CreateHome outcome is assumed to still hold. Long
+// enough that a busy session costs one call instead of hundreds, short enough that a role change
+// or an externally removed home is picked up without a restart.
+const createHomeAttemptTTL = 5 * time.Minute
+
 type createHome struct {
+	attempted           *ttlcache.Cache[string, struct{}]
 	next                http.Handler
 	logger              log.Logger
 	tracer              trace.Tracer
@@ -71,6 +92,14 @@ func (m createHome) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		if u.GetId().GetType() == userv1beta1.UserType_USER_TYPE_LIGHTWEIGHT || u.GetId().GetType() == userv1beta1.UserType_USER_TYPE_SERVICE {
 			next()
 			return
+		}
+		// Already asked for this user recently — the answer cannot have changed within the TTL.
+		if uid := u.GetId().GetOpaqueId(); uid != "" {
+			if m.attempted.Get(uid) != nil {
+				next()
+				return
+			}
+			m.attempted.Set(uid, struct{}{}, ttlcache.DefaultTTL)
 		}
 		roleIDs, err := m.getUserRoles(u)
 		if err != nil {
